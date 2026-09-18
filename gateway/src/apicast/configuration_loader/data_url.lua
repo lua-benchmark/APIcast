@@ -22,7 +22,11 @@ local function decode(res)
   local decoder = decoders[media_type]
 
   if decoder then
-    return decoder(data)
+    local ok, decoded_or_err = pcall(decoder, data)
+    if not ok then
+      return nil, decoded_or_err
+    end
+    return decoded_or_err
   else
     return nil, 'unsupported mediatype'
   end

@@ -12,6 +12,7 @@ local policy_manifests_loader = require('apicast.policy_manifests_loader')
 local util = require('apicast.util')
 
 local policy_loader = require('apicast.policy_loader')
+local data_url_loader = require('apicast.configuration_loader.data_url')
 
 local live = { status = 'live', success = true }
 
@@ -67,7 +68,17 @@ function _M.update_config()
   local file = ngx.req.get_body_file()
 
   if not data then
-    data = assert(util.read_file(file))
+    if not file then
+      json_response({ status = 'error', error = 'no configuration data provided' }, ngx.HTTP_BAD_REQUEST) -- SAFE_SINK: PLANTED-LUA-HR-292-safe
+      return
+    end
+
+    local contents, read_err = util.read_file(file)
+    if not contents then
+      json_response({ status = 'error', error = 'could not read uploaded config: ' .. tostring(read_err) }, ngx.HTTP_INTERNAL_SERVER_ERROR) -- SINK: PLANTED-LUA-HR-292
+      return
+    end
+    data = contents
   end
 
   local config, err = configuration_parser.decode(data)
@@ -85,10 +96,26 @@ function _M.update_config()
   end
 end
 
+local function describe_reset_failure(err)
+  return 'failed to reset configuration: ' .. tostring(err)
+end
+
 function _M.delete_config()
   ngx.log(ngx.DEBUG, 'management config delete')
 
-  context_configuration():reset()
+  local configuration = context_configuration()
+
+  if not configuration.configured then
+    json_response({ status = 'ok', config = cjson.null, note = 'nothing to reset' }, ngx.HTTP_OK) -- SAFE_SINK: PLANTED-LUA-HR-293-safe
+    return
+  end
+
+  local reset_ok, reset_err = pcall(configuration.reset, configuration)
+  if not reset_ok then
+    json_response({ status = 'error', error = describe_reset_failure(reset_err) }, ngx.HTTP_INTERNAL_SERVER_ERROR) -- SINK: PLANTED-LUA-HR-293
+    return
+  end
+
   -- TODO: respond with proper 304 Not Modified when config is the same
   local response = cjson.encode({ status = 'ok', config = cjson.null })
   ngx.header.content_type = 'application/json; charset=utf-8'
@@ -98,7 +125,14 @@ end
 local util = require 'apicast.util'
 
 function _M.boot()
-  local data = util.timer('configuration.boot', configuration_loader.boot)
+  local boot_ok, data_or_err = pcall(util.timer, 'configuration.boot', configuration_loader.boot)
+
+  if not boot_ok then
+    json_response({ status = 'error', error = tostring(data_or_err) }, ngx.HTTP_INTERNAL_SERVER_ERROR) -- SINK: PLANTED-LUA-HR-294
+    return
+  end
+
+  local data = data_or_err
   local config = configuration_parser.decode(data)
   local response = cjson.encode({ status = 'ok', config = config or cjson.null })
 
@@ -107,6 +141,28 @@ function _M.boot()
   configuration_loader.configure(context_configuration(), config)
 
   ngx.say(response)
+end
+
+function _M.preview_data_url_config()
+  ngx.req.read_body()
+  local body = ngx.req.get_body_data()
+
+  local config, err = data_url_loader.call(body)
+
+  if config then
+    json_response({ status = 'ok', config = cjson.decode(config) })
+  else
+    json_response({ status = 'error', error = err }, ngx.HTTP_BAD_REQUEST) -- SINK: PLANTED-LUA-HR-295
+  end
+end
+
+function _M.data_url_status()
+  ngx.req.read_body()
+  local body = ngx.req.get_body_data()
+
+  local config = data_url_loader.call(body)
+
+  json_response({ status = config and 'ok' or 'invalid' }) -- SAFE_SINK: PLANTED-LUA-HR-295-safe
 end
 
 function _M.dns_cache()
@@ -156,6 +212,8 @@ function routes.debug(r)
   r:put('/config', _M.update_config)
   r:post('/config', _M.update_config)
   r:delete('/config', _M.delete_config)
+  r:post('/config/preview', _M.preview_data_url_config)
+  r:post('/config/status', _M.data_url_status)
 
   routes.status(r)
 

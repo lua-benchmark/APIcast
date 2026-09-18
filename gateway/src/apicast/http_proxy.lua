@@ -55,7 +55,6 @@ local function forward_https_request(proxy_uri, uri, proxy_opts)
     local content_type = ngx_req_get_headers()["Content-Type"]
     local content_type_is_urlencoded = content_type and content_type:lower() == "application/x-www-form-urlencoded"
     local raw = false
-    local request_start = ngx.now()
 
     if http_methods_with_body[req_method] then
 
@@ -151,8 +150,7 @@ local function forward_https_request(proxy_uri, uri, proxy_opts)
         body = body,
         proxy_uri = proxy_uri,
         timeout = opts.upstream_connection_opts,  -- Extract timeouts to top level
-        options = opts.options,
-        proxy_options = opts,
+        proxy_options = opts
     }
 
     local httpc, err = http_proxy.new(request)
@@ -167,9 +165,6 @@ local function forward_https_request(proxy_uri, uri, proxy_opts)
     res, err = httpc:request(request)
 
     if res then
-        ngx.ctx.proxy_upstream_status = res.status
-        ngx.ctx.proxy_upstream_response_time = ngx.now() - request_start
-
         if opts.request_unbuffered and raw then
             err = send_response(sock, res, DEFAULT_CHUNKSIZE)
             if err then
@@ -243,7 +238,7 @@ function _M.request(upstream, proxy_uri)
             skip_https_connect = upstream.skip_https_connect,
             request_unbuffered = upstream.request_unbuffered,
             upstream_connection_opts = upstream.upstream_connection_opts,
-            options = upstream.options
+            upstream_ssl = upstream.upstream_ssl
         }
 
         forward_https_request(proxy_uri, uri, proxy_opts)

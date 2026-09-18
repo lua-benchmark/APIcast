@@ -24,6 +24,7 @@ end
 function _M.new(config)
   local self = new(config)
   self.error_message = config.error_message or default_error_message
+  self.debug_errors = config.debug_errors
   self.rules = {}
   self.enable_extended_context = config.enable_extended_context
   for _, rule in ipairs(config.rules) do
@@ -102,7 +103,16 @@ end
 
 function _M:access(context)
   for _, rule in ipairs(self.rules) do
-    if is_rule_denied_request(rule, context, self.enable_extended_context) then
+    local ok, denied_or_err = pcall(is_rule_denied_request, rule, context, self.enable_extended_context)
+
+    if not ok then
+      if self.debug_errors then
+        return deny_request(denied_or_err) -- SINK: PLANTED-LUA-HR-296
+      end
+      return deny_request(self.error_message) -- SAFE_SINK: PLANTED-LUA-HR-296-safe
+    end
+
+    if denied_or_err then
       return deny_request(self.error_message)
     end
   end

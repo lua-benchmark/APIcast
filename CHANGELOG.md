@@ -13,7 +13,6 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 - Routing Policy: eliminate unnecessary TemplateString allocation per request [PR #1585](https://github.com/3scale/APIcast/pull/1585)
 - Headers Policy: don't render template string when delete header [PR #1586](https://github.com/3scale/APIcast/pull/1586)
 - 3scale Batcher Policy: replace regex with string operations [PR #1583](https://github.com/3scale/APIcast/pull/1583)
-- Proxy/Upstream Connection: setup configuration in init phase - [PR #1602](https://github.com/3scale/APIcast/pull/1602)
 
 ### Fixed
 - Correct FAPI header to `x-fapi-interaction-id` [PR #1557](https://github.com/3scale/APIcast/pull/1557) [THREESCALE-11957](https://issues.redhat.com/browse/THREESCALE-11957)
@@ -24,9 +23,6 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 - Use new cpu.requests formula from Kubernetes. [PR #1595](https://github.com/3scale/APIcast/pull/1595) [THREESCALE-15465](https://redhat.atlassian.net/browse/THREESCALE-15465)
 - Fix batcher policy fails silently when configured with string values instead of integers. [PR #1597](https://github.com/3scale/APIcast/pull/1597) [THREESCALE-15547](https://redhat.atlassian.net/browse/THREESCALE-15547)
 - Unify timeout options between http clients library [PR #1600](https://github.com/3scale/APIcast/pull/1600)
-- Set request timeout for OIDC query. [PR #1601](https://github.com/3scale/APIcast/pull/1601) [THREESCALE-8006](https://redhat.atlassian.net/browse/THREESCALE-8006)
-- Set upstream metrics when sending request via proxy. [PR #1598](https://github.com/3scale/APIcast/pull/1598) [THREESCALE-10571](https://redhat.atlassian.net/browse/THREESCALE-15071)
-- Certificate is never verified in API request for https backend via proxy [PR #1573](https://github.com/3scale/APIcast/pull/1568) [THREESCALE-11944](https://redhat.atlassian.net/browse/THREESCALE-11944)
 
 ### Added
 - Update APIcast schema manifest [PR #1550](https://github.com/3scale/APIcast/pull/1550)
@@ -42,7 +38,6 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 - Bump zlib to 1.3.1 [PR #1577](https://github.com/3scale/APIcast/pull/1577) [THREESCALE-12242](https://redhat.atlassian.net/browse/THREESCALE-12242)
 - Bump liquid-lua to 0.2.1 [PR #1590](https://github.com/3scale/APIcast/pull/1590)
 - Bump nginx-lua-prometheus to 0.20220527 [PR #1591](https://github.com/3scale/APIcast/pull/1591)
-- Bump net-url to 1.2-1 [PR #1591](https://github.com/3scale/APIcast/pull/1606)
 
 ### Removed
 

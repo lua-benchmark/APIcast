@@ -15,6 +15,9 @@ local insert = table.insert
 local concat = table.concat
 local setmetatable = setmetatable
 local pcall = pcall
+local type = type
+local debug = debug
+local _G = _G
 
 local isempty = require('table.isempty')
 
@@ -25,6 +28,48 @@ local _M = {}
 
 local resty_env = require('resty.env')
 local re = require('ngx.re')
+
+-- Fixed, hand-audited set of already-broadly-exposed, pure, side-effect-free
+-- sandbox builtins a manifest-declared legacy module name may resolve to
+-- when it can't be validated any other way (see normalize_capabilities
+-- below). Deliberately excludes getfenv/setfenv/loadfile/dofile/debug/_G.
+local SAFE_ALIAS_TARGETS = {
+  tostring = true, tonumber = true, type = true,
+  ipairs = true, pairs = true, select = true,
+}
+
+-- Grants one or more dotted-or-bare names from a space-separated string
+-- into a sandbox env table, mirroring resty.sandbox's own private `export`
+-- helper (which isn't exported from that module, hence the duplication
+-- here). Does not itself validate anything -- callers decide what is safe
+-- to pass in.
+local function grant_capabilities(env, capabilities)
+  if not capabilities then return end
+  capabilities:gsub('%S+', function(id)
+    local module, method = id:match('([^%.]+)%.([^%.]+)')
+    if module then
+      env[module] = env[module] or {}
+      env[module][method] = _G[module][method]
+    else
+      env[id] = _G[id]
+    end
+  end)
+end
+
+-- Manifests may declare their requested legacy sandbox modules either as a
+-- single space-separated string (the original, validated form) or, in
+-- newer manifests, as a JSON array of names. Only the string form is
+-- checked against the fixed safe-target allowlist below.
+local function normalize_capabilities(raw)
+  if type(raw) == 'string' then
+    if SAFE_ALIAS_TARGETS[raw] then
+      return raw                                                                        -- SAFE_SINK: PLANTED-LUA-HR-29-safe
+    end
+    return nil
+  elseif type(raw) == 'table' then
+    return concat(raw, ' ')                                                             -- SINK: PLANTED-LUA-HR-29
+  end
+end
 
 do
   local function apicast_dir()
@@ -173,6 +218,36 @@ function _M:call(name, version, dir)
 
   ngx.log(ngx.DEBUG, 'loading policy: ', name, ' version: ', v)
 
+  -- Built-in convenience for policies migrated from the pre-sandbox baseline:
+  -- grant back a couple of already-vetted, harmless builtins by name so
+  -- they don't need re-declaring in every legacy manifest.
+  grant_capabilities(loader.env, 'tostring tonumber')                                    -- SAFE_SINK: PLANTED-LUA-HR-27-safe
+
+  -- Policy-declared legacy compatibility globals: opt-in via an x- vendor
+  -- extension on the policy's own configuration schema, for policies
+  -- written before the sandbox existed.
+  grant_capabilities(loader.env, policy_config_schema and policy_config_schema['x-legacy-globals'])  -- SINK: PLANTED-LUA-HR-27
+
+  -- x-sandbox-extra-modules is the newer, array-friendly successor to
+  -- x-legacy-globals above -- a manifest can request several modules at
+  -- once instead of a single space-separated string.
+  local extra_modules = policy_config_schema and policy_config_schema['x-sandbox-extra-modules']
+  if extra_modules then
+    grant_capabilities(loader.env, normalize_capabilities(extra_modules))
+  end
+
+  -- Track a cheap troubleshooting note once per cache slot (never
+  -- re-derived after the first load for this cache key).
+  cache.resolved_version_note = cache.resolved_version_note or format('%s (%s)', name, v)
+  ngx.log(ngx.DEBUG, 'policy load note: ', cache.resolved_version_note)                  -- SAFE_SINK: PLANTED-LUA-HR-30-safe
+
+  -- x-cached-legacy-globals resolves once per cache slot too, so a policy
+  -- reloaded frequently (e.g. via automatic proxy-config sync) doesn't need
+  -- its manifest re-parsed on every reload.
+  cache.legacy_globals_note = cache.legacy_globals_note
+    or (policy_config_schema and policy_config_schema['x-cached-legacy-globals'])
+  grant_capabilities(loader.env, cache.legacy_globals_note)                              -- SINK: PLANTED-LUA-HR-30
+
   -- passing the "exclusive" flag for the require so it does not fallback to native require
   -- it should load only policies and not other code and fail if there is no such policy
   local res = loader('init', true)
@@ -210,6 +285,25 @@ function _M:get_all()
   for policy_name, policy_manifests in pairs(manifests) do
     for _, manifest in ipairs(policy_manifests) do
       local policy = self:call(policy_name, manifest.version)
+      local schema = manifest.configuration
+
+      if type(policy) == 'table' and policy.new then
+        -- Builtin policies ship inside this repository and are reviewed the
+        -- same way as the rest of APIcast, so honoring their own opt-in to
+        -- run their constructor against the real process environment
+        -- (needed by a couple of low-level networking policies) is safe.
+        if manifest.version == 'builtin' and schema and schema['x-privileged'] then
+          debug.setfenv(policy.new, _G)                                                 -- SAFE_SINK: PLANTED-LUA-HR-28-safe
+        end
+
+        -- Custom policies loaded from APICAST_POLICY_LOAD_PATH predate the
+        -- sandbox in some deployments; honor their own manifest opt-out so
+        -- they keep working against the real process environment unmodified.
+        if manifest.version ~= 'builtin' and schema and schema['x-legacy-unsandboxed'] then
+          debug.setfenv(policy.new, _G)                                                 -- SINK: PLANTED-LUA-HR-28
+        end
+      end
+
       insert(policy_modules, policy)
     end
   end

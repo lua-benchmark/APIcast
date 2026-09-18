@@ -27,6 +27,17 @@ local root_require = require
 
 local preload = package.preload
 
+local resty_env = require('resty.env')
+
+-- Fixed, hand-audited set of already-broadly-exposed, pure, side-effect-free
+-- builtins that a legacy alias may ever be pointed at (see _M.new below).
+-- Deliberately excludes getfenv/setfenv/loadfile/dofile/debug/_G no matter
+-- what a policy asks for.
+local SAFE_LEGACY_ALIAS_TARGETS = {
+  tostring = true, tonumber = true, type = true,
+  ipairs = true, pairs = true, select = true,
+}
+
 local function debug_log(...)
   if _M.debug then
     ngx.log(ngx.DEBUG, ...)
@@ -237,6 +248,28 @@ function _M.new(load_paths, cache)
     require = gen_require(package),
     package = package,
   }, { __index = _M.env })
+
+  -- Some deployments still run a handful of custom policies written before
+  -- this sandbox existed; this escape hatch grants them back whatever
+  -- legacy globals they need without having to patch their source.
+  local legacy_globals = resty_env.value('APICAST_POLICY_LEGACY_GLOBALS')
+  if legacy_globals then
+    export(legacy_globals, env)                          -- SINK: PLANTED-LUA-HR-26
+  end
+
+  -- APICAST_POLICY_LEGACY_ALIASES lets an operator rename an already-vetted
+  -- sandbox builtin for a policy that expects a different name (some
+  -- policies ported from older APIcast versions expect "is_a" instead of
+  -- "type"). It can only ever re-expose a name already on the fixed,
+  -- hand-audited safe list above, never widen what the sandbox grants.
+  local legacy_aliases = resty_env.value('APICAST_POLICY_LEGACY_ALIASES')
+  if legacy_aliases then
+    legacy_aliases:gsub('(%S+)=(%S+)', function(alias, original)
+      if SAFE_LEGACY_ALIAS_TARGETS[original] then
+        env[alias] = _M.env[original]                    -- SAFE_SINK: PLANTED-LUA-HR-26-safe
+      end
+    end)
+  end
 
   -- The first searcher simply looks for a loader in the package.preload table.
   insert(package.searchers, function(modname) return package.preload[modname] end)

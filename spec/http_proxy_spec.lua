@@ -11,11 +11,11 @@ describe('http_proxy', function()
 
     local captured_request = nil
 
-    local function stub_resty_http_proxy(response)
+    local function stub_resty_http_proxy()
       local httpc = {
       }
 
-      response = response or {}
+      local response = {}
       stub(httpc, 'request', function() return response end)
       stub(httpc, 'proxy_response')
       stub(httpc, 'set_keepalive')
@@ -29,6 +29,11 @@ describe('http_proxy', function()
       stub(http_writer, 'proxy_response')
     end
 
+    before_each(function()
+      stub_ngx_request()
+      stub_resty_http_proxy()
+    end)
+
     describe('on https backend', function()
       local upstream = {
         uri = {
@@ -41,12 +46,10 @@ describe('http_proxy', function()
       }
 
       before_each(function()
-        stub_ngx_request()
         stub(upstream, 'rewrite_request')
       end)
 
       it('terminates phase', function()
-        stub_resty_http_proxy()
         local http_proxy = require('apicast.http_proxy')
         http_proxy.request(upstream, proxy_uri)
         assert.spy(ngx.exit).was_called_with(ngx.OK)
@@ -54,7 +57,6 @@ describe('http_proxy', function()
 
       it('handles nil upstream_connection_opts gracefully', function()
         captured_request = nil  -- Reset captured request
-        stub_resty_http_proxy()
 
         local upstream = {
           uri = {
@@ -79,7 +81,6 @@ describe('http_proxy', function()
 
       it('passes timeouts to proxy.new at top level', function()
         captured_request = nil  -- Reset captured request
-        stub_resty_http_proxy()
 
         local upstream = {
           uri = {
@@ -116,15 +117,6 @@ describe('http_proxy', function()
         assert.same(upstream.upstream_connection_opts,
                     captured_request.proxy_options.upstream_connection_opts,
                     'proxy_options should still contain upstream_connection_opts')
-      end)
-
-      it('stores upstream status and response time in ngx.ctx', function()
-        stub_resty_http_proxy({ status = 200 })
-        ngx.ctx = {}
-        local http_proxy = require('apicast.http_proxy')
-        http_proxy.request(upstream, proxy_uri)
-        assert.equal(200, ngx.ctx.proxy_upstream_status)
-        assert.is_number(ngx.ctx.proxy_upstream_response_time)
       end)
     end)
   end)
