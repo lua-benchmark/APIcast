@@ -1,0 +1,101 @@
+#!/usr/bin/env perl
+use strict;
+use warnings FATAL => 'all';
+
+use File::Temp qw/ tempfile /;
+
+use File::Basename;
+use Cwd qw(getcwd abs_path);
+
+sub detect_lua_version {
+    chomp(my $lua_version = `resty -e 'print(_VERSION:match(" (5%.[123])\$"))' 2> /dev/null` || '5.1');
+    return $lua_version;
+}
+
+my $apicast_dir = $ENV{APICAST_DIR} || abs_path(dirname(abs_path(__FILE__)) . '/..');
+
+sub detect_apicast_paths {
+    my $lua_modules = abs_path(dirname(abs_path(__FILE__)) . '/..');
+    my $command = basename(__FILE__);
+
+    my ($lua, $lua_file) = tempfile();
+
+    print $lua <<_LUA_;
+local rocks_dir = assert(require('luarocks.path').rocks_dir(arg[1]), 'could not get rocks dir')
+local manifest = assert(require('luarocks.manif').load_manifest(rocks_dir), 'could not load manifest')
+print(rocks_dir, '/', manifest.commands[arg[2]])
+_LUA_
+
+    my $rock = qx{resty "$lua_file" "$lua_modules" "$command" 2>/dev/null};
+
+    unlink $lua_file;
+    chomp $rock;
+
+    if (defined $rock && length $rock) {
+        return (
+            $rock . '/bin',
+            $rock . '/conf',
+            $rock =~ s{/(lib/)?luarocks/rocks/apicast/.+?/?$}[/share/lua/@{[ detect_lua_version ]}]r,
+            $rock =~ s{/(lib/)?luarocks/rocks/apicast/.+?/?$}[/lib/lua/@{[ detect_lua_version ]}]r,
+        );
+    } else {
+        return (
+            $apicast_dir . '/bin',
+            $apicast_dir,
+            $apicast_dir . '/src',
+            $apicast_dir . '/lib',
+        )
+    }
+}
+
+my ($apicast_bin, $apicast_conf, $apicast_src, $apicast_lib) = detect_apicast_paths();
+
+my $lua_path = $ENV{LUA_PATH};
+my $lua_lib = $ENV{LUA_CPATH};
+my $cwd = getcwd();
+
+$ENV{PATH} .= ":$cwd/lua_modules/bin";
+$ENV{APICAST_BUILTIN_POLICY_LOAD_PATH} ||= "$apicast_src/apicast/policy";
+
+chomp(my $rover = `command -v rover 2>/dev/null`);
+if ($rover) { $rover = abs_path($rover) }
+
+if ($rover && !$lua_path) {
+    exec '/usr/bin/env', $rover, 'exec', $0, @ARGV
+} else {
+    $lua_path ||= ';';
+    $lua_lib ||= ';';
+}
+
+$ENV{APICAST_DIR} = $apicast_conf;
+$ENV{LUA_PATH} = sprintf('%1$s/?.lua;', $apicast_src) . $lua_path . "/usr/local/openresty/lualib/?.lua;";
+$ENV{LUA_CPATH} = sprintf('%1$s/?.so;', $apicast_lib) . $lua_lib;
+$ENV{PWD} = $cwd;
+$ENV{ARGV0} = $0;
+
+sub apicast_cli {
+    return abs_path(dirname(abs_path(__FILE__)) . '/apicast_cli.lua');
+}
+
+my @resty_args = ();
+
+my $nginx = $ENV{APICAST_OPENRESTY_BINARY} || $ENV{TEST_NGINX_BINARY};
+if (defined $nginx) {
+    push @resty_args, '--nginx', $nginx;
+}
+
+if (defined $ENV{APICAST_LOG_LEVEL}) {
+    push @resty_args, '--errlog-level', $ENV{APICAST_LOG_LEVEL} || 'warn';
+}
+
+# Add directories to the lua load path.
+# APIcast source and a local src directory.
+for my $inc ($apicast_src, 'src') {
+    if (-d $inc) {
+        push @resty_args, '-I', $inc;
+    }
+}
+
+my @args = ('resty', @resty_args, apicast_cli(), @ARGV);
+
+exec '/usr/bin/env', @args;

@@ -1,0 +1,191 @@
+{
+  "$schema": "http://apicast.io/policy-v1.1/schema",
+  "name": "Routing",
+  "summary": "Allows to modify the upstream URL of the request.",
+  "description": [
+    "This policy allows to modify the upstream URL (scheme, host and port) of ",
+    "the request based on its path, its query arguments, a header, or a JWT ",
+    "claim. \n",
+    "When combined with the APIcast policy, the routing policy should be ",
+    "placed before it in the policy chain."
+  ],
+  "version": "builtin",
+  "order": {
+    "before": [
+      {
+        "name": "apicast",
+        "version": "builtin"
+      }
+    ]
+  },
+  "configuration": {
+    "type": "object",
+    "definitions": {
+      "operation": {
+        "type": "object",
+        "properties": {
+          "match": {
+            "type": "string",
+            "enum": [
+              "path",
+              "header",
+              "query_arg",
+              "jwt_claim",
+              "liquid"
+            ]
+          },
+          "op": {
+            "type": "string",
+            "enum": [
+              "==",
+              "!=",
+              "matches"
+            ]
+          },
+          "value": {
+            "type": "string"
+          },
+          "value_type": {
+            "description": "How to evaluate 'type'",
+            "type": "string",
+            "default": "plain",
+            "oneOf": [
+              {
+                "enum": ["plain"],
+                "title": "Evaluate 'value' as plain text."
+              },
+              {
+                "enum": ["liquid"],
+                "title": "Evaluate 'value' as liquid."
+              }
+            ]
+          }
+        },
+        "required": [
+          "match",
+          "op",
+          "value"
+        ],
+        "dependencies": {
+          "match": {
+            "oneOf": [
+              {
+                "properties": {
+                  "match": {
+                    "enum": [
+                      "header"
+                    ]
+                  },
+                  "header_name" : {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "header_name"
+                ]
+              },
+              {
+                "properties": {
+                  "match": {
+                    "enum": [
+                      "query_arg"
+                    ]
+                  },
+                  "query_arg_name" : {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "query_arg_name"
+                ]
+              },
+              {
+                "properties": {
+                  "match": {
+                    "enum": [
+                      "jwt_claim"
+                    ]
+                  },
+                  "jwt_claim_name" : {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "jwt_claim_name"
+                ]
+              },
+              {
+                "properties": {
+                  "match": {
+                    "enum": [
+                      "liquid"
+                    ]
+                  },
+                  "liquid_value" : {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "liquid_value"
+                ]
+              },
+              {
+                "properties": {
+                  "match": {
+                    "enum": [
+                      "path"
+                    ]
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    "properties": {
+      "rules": {
+        "description": "List of rules to be applied",
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "url": {
+              "type": "string"
+            },
+            "replace_path": {
+              "type": "string",
+              "description": "Liquid filter to modify the request path to the matched Upstream URL. When no specified, keep the original path"
+            },
+            "owner_id": {
+              "type": "integer",
+              "description": "Value to only increment hits on the mapping rules owner by the same id. "
+            },
+            "host_header": {
+              "description": "Host for the Host header. When not specified, defaults to the host of the URL.",
+              "type": "string"
+            },
+            "condition": {
+              "type": "object",
+              "properties": {
+                "operations": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/definitions/operation"
+                  }
+                },
+                "combine_op": {
+                  "description": "With 'and', the condition will be true only when all the operations evaluate to true. With 'or', the condition will be true when at least one operation evaluates to true.",
+                  "type": "string",
+                  "enum": ["and", "or"],
+                  "default": "and"
+                }
+              }
+            }
+          },
+          "required": ["url"]
+        }
+      }
+    }
+  }
+}

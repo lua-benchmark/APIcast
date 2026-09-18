@@ -1,0 +1,13 @@
+{
+  "$schema": "http://apicast.io/policy-v1/schema",
+  "name": "OAuth 2.0 Mutual TLS Client Authentication",
+  "summary": "Configure OAuth 2.0 Mutual TLS Client Authentication.",
+  "description": ["This policy executes OAuth 2.0 Mutual TLS Client Authentication ",
+    "(https://tools.ietf.org/html/rfc8705) for every API call."
+  ],
+  "version": "builtin",
+  "configuration": {
+    "type": "object",
+    "properties": { }
+  }
+}

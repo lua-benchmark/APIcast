@@ -1,0 +1,62 @@
+{
+  "$schema": "http://apicast.io/policy-v1.1/schema",
+  "name": "CORS Request Handling",
+  "summary": "Enables CORS (Cross Origin Resource Sharing) request handling.",
+  "description":
+    ["This policy enables Cross Origin Resource Sharing (CORS) request ",
+     "handling. It allows to define CORS headers such as ",
+     "Access-Control-Allow-Headers, Access-Control-Allow-Methods, etc. \n",
+     "When combined with the APIcast policy, the CORS policy should be ",
+     "placed before it in the chain."],
+  "version": "builtin",
+  "order": {
+    "before": [
+      {
+        "name": "apicast",
+        "version": "builtin"
+      }
+    ]
+  },
+  "configuration": {
+    "type": "object",
+    "properties": {
+      "allow_headers": {
+        "description": "Allowed headers",
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "allow_methods": {
+        "description": "Allowed methods",
+        "type": "array",
+        "items": {
+          "type": "string",
+          "enum": [
+            "GET",
+            "HEAD",
+            "POST",
+            "PUT",
+            "DELETE",
+            "PATCH",
+            "OPTIONS",
+            "TRACE",
+            "CONNECT"
+          ]
+        }
+      },
+      "allow_origin": {
+        "description": "Origin allowed for CORS requests. The field expects only one origin (e.g. 'https://example.com') or '*'. If left blank, the value of the 'Origin' request header will be used. In order to allow more than one origin it is possible to use a regular expression, if it matches with Origin header value, the value will be set to the Origin Value. In case it does not match, the header will not set at all. Example: '(api|web).test.com' wil match both 'api.test.com' and 'web.test.com'.",
+        "type": "string"
+      },
+      "allow_credentials": {
+        "description": "Whether the request can be made using credentials",
+        "type": "boolean"
+      },
+      "max_age": {
+        "description": "The ttl of the preflight response (default: 600)",
+        "type": "integer"
+      }
+    }
+  }
+}

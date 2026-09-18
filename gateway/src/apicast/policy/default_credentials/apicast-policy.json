@@ -1,0 +1,78 @@
+{
+  "$schema": "http://apicast.io/policy-v1.1/schema",
+  "name": "Anonymous Access",
+  "summary": "Provides default credentials for unauthenticated requests.",
+  "description":
+    ["This policy allows service exposure without authentication. \n",
+     "It can be useful, for example, for legacy apps that cannot be adapted to ",
+     "send the auth params. \n",
+     "When the credentials are not provided in the request, this policy ",
+     "provides the default ones configured. \n",
+     "You need to configure a user_key; or, the combination of app_id + app_key. \n",
+     "Note: this policy should be placed before the APIcast policy in the chain."],
+  "version": "builtin",
+  "order": {
+    "before": [
+      {
+        "name": "apicast",
+        "version": "builtin"
+      }
+    ]
+  },
+  "configuration": {
+    "type":"object",
+    "properties":{
+      "auth_type":{
+        "type":"string",
+        "enum":[
+          "user_key",
+          "app_id_and_app_key"
+        ],
+        "default":"user_key"
+      }
+    },
+    "required":[
+      "auth_type"
+    ],
+    "dependencies":{
+      "auth_type":{
+        "oneOf":[
+          {
+            "properties":{
+              "auth_type":{
+                "enum":[
+                  "user_key"
+                ]
+              },
+              "user_key":{
+                "type":"string"
+              }
+            },
+            "required":[
+              "user_key"
+            ]
+          },
+          {
+            "properties":{
+              "auth_type":{
+                "enum":[
+                  "app_id_and_app_key"
+                ]
+              },
+              "app_id":{
+                "type":"string"
+              },
+              "app_key":{
+                "type":"string"
+              }
+            },
+            "required":[
+              "app_id",
+              "app_key"
+            ]
+          }
+        ]
+      }
+    }
+  }
+}

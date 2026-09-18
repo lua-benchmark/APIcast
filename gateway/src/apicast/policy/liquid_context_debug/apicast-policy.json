@@ -1,0 +1,40 @@
+{
+  "$schema": "http://apicast.io/policy-v1.1/schema",
+  "name": "Liquid Context Debug",
+  "summary": "Inspects the available liquid context.",
+  "description": [
+    "This is a policy intended only for debugging purposes. This policy ",
+    "returns the context available when evaluating liquid. Any policy can ",
+    "modify the context that is shared between policies and that context is ",
+    "available when evaluating liquid. However, documenting what is available ",
+    "is not possible because policies can add any arbitrary field. Users who ",
+    "want to develop a policy can use this one to know the context available ",
+    "in their configuration. ",
+    "When combined with the APIcast policy or the upstream one, this policy ",
+    "needs to be placed before them in the chain in order to work correctly. ",
+    "Note: This policy only returns duplicated objects once to avoid circular ",
+    "references."
+  ],
+  "version": "builtin",
+  "order": {
+    "before": [
+      {
+        "name": "apicast",
+        "version": "builtin"
+      },
+      {
+        "name": "upstream",
+        "version": "builtin"
+      },
+      {
+        "name": "routing",
+        "version": "builtin"
+      }
+    ]
+  },
+  "configuration": {
+    "type": "object",
+    "properties": {
+    }
+  }
+}

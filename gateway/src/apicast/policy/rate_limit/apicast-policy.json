@@ -1,0 +1,234 @@
+{
+  "$schema": "http://apicast.io/policy-v1.1/schema",
+  "name": "Edge Limiting",
+  "summary": "Adds rate limit.",
+  "description": ["This policy adds rate limit."],
+  "version": "builtin",
+  "configuration": {
+    "type": "object",
+    "definitions": {
+      "key": {
+        "description": "The key corresponding to the limiter object",
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "The name of the key, must be unique in the scope"
+          },
+          "name_type": {
+            "description": "How to evaluate 'name'",
+            "type": "string",
+            "default": "plain",
+            "oneOf": [{
+              "enum": ["plain"],
+              "title": "Evaluate 'name' as plain text."
+            }, {
+              "enum": ["liquid"],
+              "title": "Evaluate 'name' as liquid."
+            }]
+          },
+          "scope": {
+            "type": "string",
+            "description": "Scope of the key",
+            "default": "service",
+            "oneOf": [{
+              "enum": ["global"],
+              "description": "Global scope, affecting to all services"
+            }, {
+              "enum": ["service"],
+              "description": "Service scope, affecting to one service"
+            }]
+          }
+        }
+      },
+      "error_handling": {
+        "type": "string",
+        "description": "How to handle an error",
+        "default": "exit",
+        "oneOf": [{
+          "enum": ["exit"],
+          "description": "Respond with an error"
+        }, {
+          "enum": ["log"],
+          "description": "Let the request go through and only output logs"
+        }]
+      },
+      "operation": {
+        "type": "object",
+        "properties": {
+          "left": {
+            "type": "string"
+          },
+          "op": {
+            "description": "Operation to apply. The matches op supports PCRE (Perl compatible regular expressions)",
+            "type": "string",
+            "enum": ["==", "!=", "matches"]
+          },
+          "right": {
+            "type": "string"
+          },
+          "left_type": {
+            "description": "How to evaluate 'left'",
+            "type": "string",
+            "default": "plain",
+            "oneOf": [
+              {
+                "enum": ["plain"],
+                "title": "Evaluate 'left' as plain text."
+              },
+              {
+                "enum": ["liquid"],
+                "title": "Evaluate 'left' as liquid."
+              }
+            ]
+          },
+          "right_type": {
+            "description": "How to evaluate 'right'",
+            "type": "string",
+            "default": "plain",
+            "oneOf": [
+              {
+                "enum": ["plain"],
+                "title": "Evaluate 'right' as plain text."
+              },
+              {
+                "enum": ["liquid"],
+                "title": "Evaluate 'right' as liquid."
+              }
+            ]
+          }
+        },
+        "required": ["left", "op", "right"]
+      },
+      "condition": {
+        "type": "object",
+        "description": "Condition to be evaluated",
+        "properties": {
+          "operations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/definitions/operation"
+            },
+            "minItems": 0
+          },
+          "combine_op": {
+            "type": "string",
+            "enum": ["and", "or"],
+            "default": "and"
+          }
+        }
+      }
+    },
+    "properties": {
+      "connection_limiters": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "key": {
+              "$ref": "#/definitions/key"
+            },
+            "condition": {
+              "$ref": "#/definitions/condition"
+            },
+            "conn": {
+              "type": "integer",
+              "description": "The maximum number of concurrent requests allowed",
+              "exclusiveMinimum": 0
+            },
+            "burst": {
+              "type": "integer",
+              "description": "The number of excessive concurrent requests (or connections) allowed to be delayed",
+              "minimum": 0
+            },
+            "delay": {
+              "type": "number",
+              "description": "The default processing latency of a typical connection (or request)",
+              "exclusiveMinimum": 0
+            }
+          }
+        }
+      },
+      "leaky_bucket_limiters": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "key": {
+              "$ref": "#/definitions/key"
+            },
+            "condition": {
+              "$ref": "#/definitions/condition"
+            },
+            "rate": {
+              "type": "integer",
+              "description": "The specified request rate (number per second) threshold",
+              "exclusiveMinimum": 0
+            },
+            "burst": {
+              "type": "integer",
+              "description": "The number of excessive requests per second allowed to be delayed",
+              "minimum": 0
+            }
+          }
+        }
+      },
+      "fixed_window_limiters": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": ["key", "count", "window"],
+          "properties": {
+            "key": {
+              "$ref": "#/definitions/key"
+            },
+            "condition": {
+              "$ref": "#/definitions/condition"
+            },
+            "count": {
+              "type": "integer",
+              "description": "The specified number of requests threshold",
+              "exclusiveMinimum": 0
+            },
+            "window": {
+              "type": "integer",
+              "description": "The time window in seconds before the request count is reset",
+              "minimum": 0,
+              "default": 1
+            }
+          }
+        }
+      },
+      "redis_url": {
+        "description": "URL of Redis",
+        "type": "string"
+      },
+      "limits_exceeded_error": {
+        "type": "object",
+        "properties": {
+          "status_code": {
+            "type": "integer",
+            "description": "The status code when requests over the limit",
+            "default": 429
+          },
+          "error_handling": {
+            "$ref": "#/definitions/error_handling"
+          }
+        }
+      },
+      "configuration_error": {
+        "type": "object",
+        "properties": {
+          "status_code": {
+            "type": "integer",
+            "description": "The status code when there is some configuration issue",
+            "default": 500
+          },
+          "error_handling": {
+            "$ref": "#/definitions/error_handling"
+          }
+        }
+      }
+    }
+  }
+}

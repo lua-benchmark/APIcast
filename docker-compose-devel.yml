@@ -1,0 +1,25 @@
+---
+version: '2.2'
+services:
+  development:
+    image: ${IMAGE:-quay.io/3scale/apicast-ci:openresty-1.27.1-1}
+    platform: "linux/amd64"
+    depends_on:
+      - redis
+    working_dir: /opt/app-root/src/
+    command: cat
+    tty: true
+    init: true
+    environment:
+      EDITOR: vi
+      TEST_NGINX_REDIS_HOST: redis
+      TEST_NGINX_BINARY: openresty
+      PROJECT_PATH: /opt/app-root/src
+      TEST_NGINX_APICAST_PATH: /opt/app-root/src/gateway
+      ROVER: /usr/local/openresty/luajit/bin/rover
+      HOME: /opt/app-root/src/
+      # https://github.com/jenkinsci/docker/issues/519#issuecomment-313052325
+      GIT_COMMITTER_NAME: ${GIT_COMMITTER_NAME:-${USER}}
+      GIT_COMMITTER_EMAIL: ${GIT_COMMITTER_EMAIL:-""}
+  redis:
+    image: mirror.gcr.io/library/redis

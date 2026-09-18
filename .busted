@@ -1,0 +1,24 @@
+local path = require('pl.path')
+local root = path.currentdir()
+
+local ci = os.getenv('CI')
+
+local all = {
+  helper = path.join(root, 'spec/spec_helper.lua'),
+}
+local default = {
+  verbose = true,
+  ['shuffle-tests'] = true,
+  ['shuffle-files'] = true,
+
+  lpath = path.join(root, 'spec/?.lua;')  .. path.join(root, 'gateway/src/?.lua;'),
+}
+
+if ci then
+    default.output = 'spec.ci_reporter'
+end
+
+return {
+  _all = all,
+  default = default,
+}

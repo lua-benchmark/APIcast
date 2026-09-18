@@ -1,0 +1,75 @@
+{
+  "$schema": "http://apicast.io/policy-v1.1/schema",
+  "name": "Header Modification",
+  "summary": "Allows to include custom headers.",
+  "description":
+    ["This policy allows to include custom headers that will be sent to the ",
+     "upstream as well as modify or delete the ones included in the original ",
+     "request. Similarly, this policy also allows to add, modify, and delete ",
+     "the headers included in the response."],
+  "version": "builtin",
+  "configuration": {
+    "type": "object",
+    "definitions": {
+      "commands": {
+        "description": "List of operations to apply to the headers",
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "op": {
+              "description": "Operation to be applied",
+              "type": "string",
+              "oneOf": [
+                {
+                  "enum": ["add"],
+                  "title": "Add a value to an existing header."
+                },
+                {
+                  "enum": ["set"],
+                  "title": "Create the header when not set, replace its value when set."
+                },
+                {
+                  "enum": ["push"],
+                  "title": "Create the header when not set, add the value when set."
+                },
+                {
+                  "enum": ["delete"],
+                  "title": "Delete a header."
+                }
+              ]
+            },
+            "header": {
+              "description": "Header to be modified",
+              "type": "string"
+            },
+            "value": {
+              "description": "Value that will be added, set or pushed in the header. Not needed when deleting.",
+              "type": "string"
+            },
+            "value_type": {
+              "description": "How to evaluate 'value'",
+              "type": "string",
+              "oneOf": [
+                {
+                  "enum": ["plain"],
+                  "title": "Evaluate 'value' as plain text."
+                },
+                {
+                  "enum": ["liquid"],
+                  "title": "Evaluate 'value' as liquid."
+                }
+              ],
+              "default": "plain"
+            }
+          },
+          "required": ["op", "header"]
+        }
+      }
+    },
+    "properties": {
+      "request": { "$ref": "#/definitions/commands" },
+      "response": { "$ref": "#/definitions/commands" }
+    }
+  }
+}

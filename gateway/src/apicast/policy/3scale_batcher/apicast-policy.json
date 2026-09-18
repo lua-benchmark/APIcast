@@ -1,0 +1,24 @@
+{
+  "$schema": "http://apicast.io/policy-v1.1/schema",
+  "name": "3scale Batcher",
+  "summary": "Caches auths from 3scale backend and batches reports.",
+  "description":
+    ["This policy caches authorizations from the 3scale backend ",
+     "and reports them in batches. This is more efficient than authorizing ",
+     "and reporting on each request at the expense of losing accuracy in the ",
+     "rate limits."],
+  "version": "builtin",
+  "configuration": {
+    "type": "object",
+    "properties": {
+      "auths_ttl": {
+        "description": "TTL for cached auths in seconds",
+        "type": "integer"
+      },
+      "batch_report_seconds": {
+        "description": "Duration (in seconds) for batching reports",
+        "type": "integer"
+      }
+    }
+  }
+}

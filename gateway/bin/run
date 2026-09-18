@@ -1,0 +1,21 @@
+#!/bin/bash
+
+# 3scale (operations@3scale.net)
+set -eu
+
+luarocks=/opt/app/bin/luarocks
+
+# Load Luarocks paths
+if [ -f "${luarocks}" ]; then
+  eval `/opt/app/bin/luarocks path`
+fi
+
+if [ -f bin/apicast ]; then
+  apicast=bin/apicast
+elif [ -f "${BASH_SOURCE%/*}/apicast" ]; then
+  apicast="${BASH_SOURCE%/*}/apicast"
+else
+  apicast=apicast
+fi
+
+exec "${apicast}" "$@"

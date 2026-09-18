@@ -1,0 +1,8 @@
+requires 'Test::APIcast', '0.24';
+requires 'Crypt::JWT';
+requires 'Test::Deep';
+requires 'File::Slurp';
+requires 'JSON';
+requires 'URI::data';
+requires 'TAP::Harness::JUnit';
+requires 'Data::Inspect';

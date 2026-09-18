@@ -1,0 +1,21 @@
+luarocks {
+
+    rockspec 'apicast-scm-1.rockspec',
+
+    group 'production' {
+        module {'lua-resty-iputils', '0.3.0'},
+    },
+
+    group 'testing' {
+        module { 'busted', '2.3.0'},
+        module { 'luacov' },
+        module { 'jsonschema', '0.8' },
+    },
+
+    group 'development' {
+        module {'ldoc'},
+        module {'lua-resty-repl'},
+        module {'fifo'},
+    }
+}
+

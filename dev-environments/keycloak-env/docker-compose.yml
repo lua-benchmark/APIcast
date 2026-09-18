@@ -1,0 +1,49 @@
+---
+services:
+  gateway:
+    image: ${IMAGE_NAME:-apicast-test}
+    build:
+      context: ../..
+      dockerfile: Dockerfile
+    depends_on:
+    - example.com
+    - two.upstream
+    - keycloak
+    environment:
+      THREESCALE_CONFIG_FILE: /tmp/config.json
+      THREESCALE_DEPLOYMENT_ENV: staging
+      APICAST_CONFIGURATION_LOADER: lazy
+      APICAST_WORKERS: 1
+      APICAST_LOG_LEVEL: debug
+      APICAST_CONFIGURATION_CACHE: "0"
+    expose:
+      - "8080"
+      - "8090"
+    ports:
+      - "8080:8080"
+      - "8090:8090"
+    volumes:
+      - ./apicast-config.json:/tmp/config.json
+  example.com:
+    image: quay.io/openshift-logging/alpine-socat:1.8.0.0
+    container_name: example.com
+    command: "-d -v -d TCP-LISTEN:80,reuseaddr,fork TCP:two.upstream:8080"
+    expose:
+      - "80"
+    restart: unless-stopped
+  two.upstream:
+    image: quay.io/kuadrant/authorino-examples:talker-api
+    expose:
+      - "8080"
+  keycloak:
+    image: quay.io/keycloak/keycloak:23.0.4
+    container_name: keycloak
+    command: "start-dev"
+    expose:
+      - "8080"
+    ports:
+      - "9090:8080"
+    restart: unless-stopped
+    environment:
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: adminpass

@@ -1,0 +1,22 @@
+---
+engines:
+  luacheck:
+    enabled: true
+    checks:
+      LC631:
+        enabled: false
+    config:
+      max_cyclomatic_complexity: 7
+  shellcheck:
+    enabled: true
+    checks:
+      SC1008:
+        enabled: false
+exclude_paths:
+  - local
+  - node_modules
+ratings:
+  paths:
+  - "**.sh"
+  - "**.lua"
+  - "**/bin/*"

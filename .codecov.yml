@@ -1,0 +1,19 @@
+codecov:
+  branch: master
+comment: off
+ignore:
+  - spec
+  - t
+  - bin/busted.lua
+  - examples
+
+coverage:
+  status:
+    project:
+      default:
+        target: auto
+        threshold: 3%
+    patch:
+      default:
+        target: auto
+        threshold: 3%

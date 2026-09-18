@@ -1,0 +1,63 @@
+{
+  "services": [
+    {
+      "id": "wrong-host",
+      "backend_version": 1,
+      "proxy": {
+        "api_backend": "https://wrong.host.badssl.com",
+        "hosts": [
+          "wrong.host.badssl.com"
+        ],
+        "proxy_rules": [
+          {
+            "http_method": "GET",
+            "pattern": "/",
+            "metric_system_name": "hits",
+            "delta": 1
+          }
+        ]
+      }
+    },
+    {
+      "id": "ok-host",
+      "backend_version": 1,
+      "proxy": {
+        "api_backend": "https://badssl.com",
+        "hosts": [
+          "badssl.com"
+        ],
+        "proxy_rules": [
+          {
+            "http_method": "GET",
+            "pattern": "/",
+            "metric_system_name": "hits",
+            "delta": 1
+          }
+        ]
+      }
+    },
+    {
+      "id": "client-cert",
+      "backend_version": 1,
+      "proxy": {
+        "api_backend": "https://client.badssl.com",
+        "backend": {
+          "endpoint": "https://echo-api.3scale.net"
+        },
+        "hosts": [
+          "client.badssl.com",
+          "localhost"
+        ],
+        "proxy_rules": [
+          {
+            "http_method": "GET",
+            "pattern": "/",
+            "metric_system_name": "hits",
+            "delta": 1
+          }
+        ]
+      }
+    }
+  ]
+}
+

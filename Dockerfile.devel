@@ -1,0 +1,80 @@
+FROM registry.access.redhat.com/ubi9/ubi-minimal
+
+ARG OPENRESTY_RPM_VERSION="1.27.1-1.el9"
+ARG LUAROCKS_VERSION="3.12.0"
+ARG LUAROVER_VERSION="0.2.3"
+
+WORKDIR /tmp
+
+ENV APP_ROOT=/opt/app-root \
+    HOME=/opt/app-root/src \
+    PATH=/opt/app-root/src/bin:/opt/app-root/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
+    PLATFORM="el9"
+
+RUN microdnf update -y \
+    && microdnf install -y 'yum-utils'
+
+RUN microdnf install -y \
+        gcc make git which iputils bind-utils expat-devel kernel-headers openssl-devel m4 \
+        libyaml libyaml-devel perl-local-lib perl-App-cpanminus perl-LWP-Protocol-https \
+        tar
+
+# perl-Test-Nginx
+RUN cpanm --notest IPC::Run && \
+    cpanm https://cpan.metacpan.org/authors/id/A/AG/AGENT/Test-Nginx-0.29.tar.gz && \
+    cpanm https://cpan.metacpan.org/authors/id/O/OA/OALDERS/LWP-Protocol-https-6.15.tar.gz
+
+RUN yum-config-manager --add-repo http://packages.dev.3sca.net/dev_packages_3sca_net.repo
+
+RUN microdnf install -y \
+        openresty-${OPENRESTY_RPM_VERSION} \
+        openresty-resty-${OPENRESTY_RPM_VERSION} \
+        openresty-opentelemetry-${OPENRESTY_RPM_VERSION}
+
+RUN ln -sf /dev/stdout /usr/local/openresty/nginx/logs/access.log \
+    && ln -sf /dev/stderr /usr/local/openresty/nginx/logs/error.log \
+    && mkdir -p /usr/local/openresty/nginx/client_body_temp/ \
+    && chmod 777 /usr/local/openresty/nginx/client_body_temp/
+
+COPY site_config.lua /usr/share/lua/5.1/luarocks/site_config.lua
+COPY config-*.lua /usr/local/openresty/config-5.1.lua
+
+ENV PATH="./lua_modules/bin:/usr/local/openresty/luajit/bin/:${PATH}" \
+    LUA_PATH="./lua_modules/share/lua/5.1/?.lua;./lua_modules/share/lua/5.1/?/init.lua;/usr/lib64/lua/5.1/?.lua;/usr/share/lua/5.1/?.lua;/opt/app-root/lua_modules/share/lua/5.1/?.lua;/opt/app-root/lua_modules/share/lua/5.1/?/?.lua" \
+    LUA_CPATH="./lua_modules/lib/lua/5.1/?.so;/opt/app-root/lua_modules/lib/lua/5.1/?.so;/opt/app-root/lua_modules/lib/lua/5.1/?/?.so;;" \
+    LD_LIBRARY_PATH="$LD_LIBRARY_PATH:/opt/app-root/lib"
+
+RUN cd /tmp \
+    && curl -fSL https://luarocks.github.io/luarocks/releases/luarocks-${LUAROCKS_VERSION}.tar.gz -o luarocks-${LUAROCKS_VERSION}.tar.gz \
+    && tar xzf luarocks-${LUAROCKS_VERSION}.tar.gz \
+    && cd luarocks-${LUAROCKS_VERSION} \
+    && ./configure \
+        --prefix=/usr/local/openresty/luajit \
+        --with-lua=/usr/local/openresty/luajit \
+        --with-lua-include=/usr/local/openresty/luajit/include/luajit-2.1 \
+    && make build \
+    && make install \
+    # && luarocks install luaossl 20200709 --tree ${APP_ROOT}/lua_modules CFLAGS="-O2 -fPIC -DHAVE_EVP_KDF_CTX=1" \
+    && luarocks install http --tree ${APP_ROOT}/lua_modules \
+    && cd /tmp \
+    && rm -rf luarocks-${LUAROCKS_VERSION} luarocks-${LUAROCKS_VERSION}.tar.gz \
+    && curl -fSL https://github.com/3scale/lua-rover/archive/refs/tags/v${LUAROVER_VERSION}.tar.gz -o lua-rover-v${LUAROVER_VERSION}.tar.gz \
+    && tar xzf lua-rover-v${LUAROVER_VERSION}.tar.gz \
+    && cd lua-rover-${LUAROVER_VERSION} \
+    && luarocks make \
+    && rm -rf /var/cache/yum /var/cache/dnf \
+    && microdnf clean all -y
+
+# Directory with the sources is set as the working directory so all STI scripts
+# can execute relative to this path.
+WORKDIR ${HOME}
+
+# Reset permissions of modified directories and add default user
+RUN useradd -u 1001 -r -g 0 -d ${HOME} -s /sbin/nologin \
+      -c "Default Application User" default && \
+    chown -R 1001:0 ${APP_ROOT}
+
+USER 1001
+WORKDIR ${HOME}
+EXPOSE 8080
+CMD ["/bin/bash"]

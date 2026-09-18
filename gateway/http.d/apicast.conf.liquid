@@ -1,0 +1,140 @@
+log_format time '[$time_local] $target_host:$server_port $remote_addr:$remote_port "$request" $status $body_bytes_sent ($request_time) $post_action_impact';
+
+# Use maps as variables because some logs can be raised out of the server context
+# where variables cannot be set, this allow us to avoid a warning
+map "" $extended_access_log {
+    default '';
+}
+
+map "" $access_logs_enabled {
+  default '1';
+}
+
+map "" $extended_access_logs_enabled {
+  default '0';
+}
+
+map "" $post_action_impact {
+  default '';
+}
+
+map "" $target_host {
+  default '$host';
+}
+
+log_format extended escape=none '$extended_access_log';
+
+server {
+  listen {{ port.management | default: 8090 }};
+  server_name {{ server_name.management | default: 'management _' }};
+
+  {% if opentelemetry != empty %}
+  opentelemetry_operation_name apicast_management;
+  {% endif %}
+
+  {% include "conf.d/management.conf" %}
+}
+
+server {
+  listen {{ port.backend | default: 8081 }};
+  server_name backend;
+
+  {% if opentelemetry != empty %}
+  opentelemetry_operation_name apicast_mockbackend;
+  {% endif %}
+
+  {% include "conf.d/backend.conf" %}
+}
+
+upstream echo {
+  server 127.0.0.1:{{ port.echo | default: 8081 }};
+  keepalive 1024;
+}
+
+server {
+  listen {{ port.echo | default: 8081 }} default_server;
+  server_name echo _;
+
+  {% if opentelemetry != empty %}
+  opentelemetry_operation_name apicast_echo;
+  {% endif %}
+
+  {% include "conf.d/echo.conf" %}
+}
+
+server {
+  {% capture log_buffer %} {%if log_buffer_size %}buffer={{ log_buffer_size }} {% endif %} {% endcapture %}
+
+  access_log {{ access_log_file | default: "/dev/stdout" }} time if=$access_logs_enabled {{ log_buffer }};
+  access_log {{ access_log_file | default: "/dev/stdout" }} extended if=$extended_access_logs_enabled {{ log_buffer }};
+
+  {%- assign http_port = port.apicast | default: 8080 %}
+  {%- assign https_port = env.APICAST_HTTPS_PORT %}
+  {%- assign http_proxy_protocol = env.APICAST_HTTP_PROXY_PROTOCOL %}
+  {%- assign https_proxy_protocol = env.APICAST_HTTPS_PROXY_PROTOCOL %}
+
+  {% if http_port != https_port -%}
+    listen {{ http_port }} {% if http_proxy_protocol %}proxy_protocol {% endif %};
+  {% endif %}
+
+  {% if https_port -%}
+    listen {{ https_port }} ssl {% if https_proxy_protocol %}proxy_protocol{% endif %};
+    http2 on;
+
+    ssl_protocols TLSv1.2 TLSv1.3;
+  {%- assign https_certificate = env.APICAST_HTTPS_CERTIFICATE -%}
+  ssl_certificate {% if https_certificate -%}
+    {{  https_certificate }}
+  {%- else -%}
+    {{ "conf/server.crt" | filesystem | first }}
+  {%- endif %};
+
+  {%- assign https_certificate_key = env.APICAST_HTTPS_CERTIFICATE_KEY -%}
+  ssl_certificate_key {% if https_certificate_key -%}
+    {{  https_certificate_key }}
+  {%- else -%}
+    {{ "conf/server.key" | filesystem | first }}
+  {%- endif %};
+
+  ssl_verify_client {{ env.APICAST_HTTPS_VERIFY_CLIENT | default: "optional_no_ca" }};
+  ssl_certificate_by_lua_block { require('apicast.executor'):ssl_certificate() }
+  ssl_verify_depth {{ env.APICAST_HTTPS_VERIFY_DEPTH | default: 1 }};
+  {%- endif %}
+
+  server_name _;
+
+  {% if http_keepalive_timeout != empty %}
+      keepalive_timeout {{ http_keepalive_timeout}};
+  {% endif %}
+
+  {% if opentelemetry != empty %}
+  opentelemetry_operation_name apicast;
+  opentelemetry_attribute original_request_uri $original_request_uri;
+  {% endif %}
+
+  {% include "http.d/ssl.conf" %}
+
+  {% for file in "apicast.d/*.conf" | filesystem %}
+    {% include file %}
+  {% endfor %}
+  {% include "conf.d/apicast.conf" %}
+  {% include "conf.d/http2.conf" %}
+}
+
+{% if port.metrics %}
+  lua_shared_dict prometheus_metrics 16M;
+  server {
+    access_log off;
+    listen {{ port.metrics }};
+    server_name metrics prometheus _;
+
+    location /metrics {
+      content_by_lua_block { require('apicast.executor'):metrics() }
+    }
+
+    location /nginx_status {
+      internal;
+      stub_status;
+    }
+  }
+{% endif %}

@@ -1,0 +1,21 @@
+luacov.*.out
+local/
+t/servroot*/
+doc/lua/
+node_modules
+.vagrant/
+apicast/logs/
+*.rock
+# explicitly allow some source rocks as dependencies
+!dependencies/rpm-specs/gateway-rockspecs-native/source_rocks/*.src.rock
+!dependencies/rpm-specs/gateway-rockspecs/source_rocks/*.src.rock
+lua_modules/
+tmp/benchmark/
+.bash_history
+.cache/
+.cpanm
+/vendor/cache
+/tmp/
+.gitconfig
+.idea/
+.vscode/
